@@ -1,4 +1,4 @@
-// components/sales/QuotationPopup.js - UPDATED
+// components/sales/QuotationPopup.js - UPDATED (Removed shipping, show charges directly)
 import { useState, useEffect } from "react"
 import {
   X, FileText, Download, Printer, Send, Edit, Save, Plus, Trash2,
@@ -36,7 +36,7 @@ export default function QuotationPopup({ request, quotation, isOpen, onClose, on
   // Check if we're editing an existing quotation
   const isEditingQuotation = !!quotation;
 
-  // Quotation form state - UPDATED
+  // Quotation form state - UPDATED: removed shippingCharges field
   const [formData, setFormData] = useState({
     quotationNumber: `QT-${request?.requestId || ''}-${Date.now().toString().slice(-4)}`,
     date: new Date().toISOString().split('T')[0],
@@ -45,10 +45,7 @@ export default function QuotationPopup({ request, quotation, isOpen, onClose, on
     subtotalBeforeGST: 0,
     totalDiscount: 0,
     totalGST: 0,
-    shippingCharges: 0,
-    // REMOVED: adjustment
-    // ADDED: customAdditionalCharges
-    customAdditionalCharges: [],
+    customAdditionalCharges: [], // Custom charges only, no shipping
     grandTotal: 0,
     paymentSchedule: [],
     notes: '',
@@ -205,12 +202,11 @@ export default function QuotationPopup({ request, quotation, isOpen, onClose, on
             }
           }
 
-          // Calculate totals with custom charges
+          // Calculate totals with custom charges only
           const subtotalBeforeGST = initialItems.reduce((sum, item) => sum + item.priceBeforeGST, 0)
           const totalGST = initialItems.reduce((sum, item) => sum + item.gstAmount, 0)
           const totalCustomCharges = (quotation?.customAdditionalCharges || []).reduce((sum, charge) => sum + charge.amount, 0)
-          const shippingCharges = parseFloat(quotation?.shippingCharges) || 0
-          const grandTotal = subtotalBeforeGST + totalGST + shippingCharges + totalCustomCharges
+          const grandTotal = subtotalBeforeGST + totalGST + totalCustomCharges
 
           // Default payment schedule (60% advance, 40% final)
           const defaultPaymentSchedule = [
@@ -238,7 +234,6 @@ export default function QuotationPopup({ request, quotation, isOpen, onClose, on
             items: initialItems,
             subtotalBeforeGST: parseFloat(subtotalBeforeGST.toFixed(2)),
             totalGST: parseFloat(totalGST.toFixed(2)),
-            shippingCharges: shippingCharges,
             customAdditionalCharges: quotation?.customAdditionalCharges || [],
             grandTotal: parseFloat(grandTotal.toFixed(2)),
             paymentSchedule: defaultPaymentSchedule
@@ -274,15 +269,14 @@ export default function QuotationPopup({ request, quotation, isOpen, onClose, on
     }))
   }, [newItem.quantity, newItem.unitPrice, newItem.discountPercentage, newItem.gstPercentage])
 
-  // Calculate form totals when items, shipping, or custom charges change
+  // Calculate form totals when items or custom charges change
   useEffect(() => {
     const subtotalBeforeGST = formData.items.reduce((sum, item) => sum + (item.priceBeforeGST || 0), 0)
     const totalDiscount = formData.items.reduce((sum, item) => sum + (item.discountAmount || 0), 0)
     const totalGST = formData.items.reduce((sum, item) => sum + (item.gstAmount || 0), 0)
     const totalCustomCharges = formData.customAdditionalCharges.reduce((sum, charge) => sum + charge.amount, 0)
 
-    const shippingCharges = parseFloat(formData.shippingCharges) || 0
-    const grandTotal = subtotalBeforeGST + totalGST + shippingCharges + totalCustomCharges
+    const grandTotal = subtotalBeforeGST + totalGST + totalCustomCharges
 
     // Update payment schedule amounts
     const updatedPaymentSchedule = formData.paymentSchedule.map(payment => ({
@@ -298,7 +292,7 @@ export default function QuotationPopup({ request, quotation, isOpen, onClose, on
       grandTotal: parseFloat(grandTotal.toFixed(2)),
       paymentSchedule: updatedPaymentSchedule
     }))
-  }, [formData.items, formData.shippingCharges, formData.customAdditionalCharges])
+  }, [formData.items, formData.customAdditionalCharges])
 
   // ADDED: Handle add custom charge
   const handleAddCustomCharge = () => {
@@ -514,11 +508,8 @@ export default function QuotationPopup({ request, quotation, isOpen, onClose, on
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-gray-800/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
-        {/* Header */}
-        
-
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b">
           <div className="flex items-center gap-3">
@@ -774,124 +765,19 @@ export default function QuotationPopup({ request, quotation, isOpen, onClose, on
             </div>
 
             {/* Add Item Form (only in edit mode) */}
-            {editing && (
-              <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-                <h4 className="font-medium text-gray-900 mb-3">Add New Item</h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Item Name</label>
-                    <input
-                      type="text"
-                      value={newItem.itemName}
-                      onChange={(e) => setNewItem(prev => ({ ...prev, itemName: e.target.value }))}
-                      className="w-full border rounded px-3 py-2 text-sm"
-                      placeholder="Enter item name"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Item Code</label>
-                    <input
-                      type="text"
-                      value={newItem.itemCode}
-                      onChange={(e) => setNewItem(prev => ({ ...prev, itemCode: e.target.value }))}
-                      className="w-full border rounded px-3 py-2 text-sm"
-                      placeholder="Enter item code"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">HSN Code</label>
-                    <input
-                      type="text"
-                      value={newItem.hsnCode}
-                      onChange={(e) => setNewItem(prev => ({ ...prev, hsnCode: e.target.value }))}
-                      className="w-full border rounded px-3 py-2 text-sm"
-                      placeholder="Enter HSN code"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
-                    <input
-                      type="number"
-                      value={newItem.quantity}
-                      onChange={(e) => setNewItem(prev => ({ ...prev, quantity: parseFloat(e.target.value) || 0 }))}
-                      className="w-full border rounded px-3 py-2 text-sm"
-                      min="1"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Unit Price (incl. GST)</label>
-                    <input
-                      type="number"
-                      value={newItem.unitPrice}
-                      onChange={(e) => setNewItem(prev => ({ ...prev, unitPrice: parseFloat(e.target.value) || 0 }))}
-                      className="w-full border rounded px-3 py-2 text-sm"
-                      min="0"
-                      step="0.01"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Discount %</label>
-                    <input
-                      type="number"
-                      value={newItem.discountPercentage}
-                      onChange={(e) => setNewItem(prev => ({ ...prev, discountPercentage: parseFloat(e.target.value) || 0 }))}
-                      className="w-full border rounded px-3 py-2 text-sm"
-                      min="0"
-                      max="100"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">GST %</label>
-                    <input
-                      type="number"
-                      value={newItem.gstPercentage}
-                      onChange={(e) => setNewItem(prev => ({ ...prev, gstPercentage: parseFloat(e.target.value) || 18 }))}
-                      className="w-full border rounded px-3 py-2 text-sm"
-                      min="0"
-                      max="100"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                    <input
-                      type="text"
-                      value={newItem.description}
-                      onChange={(e) => setNewItem(prev => ({ ...prev, description: e.target.value }))}
-                      className="w-full border rounded px-3 py-2 text-sm"
-                      placeholder="Enter description"
-                    />
-                  </div>
-                  <div className="flex items-end">
-                    <button
-                      onClick={handleAddItem}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Add Item
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
+            
           </div>
 
-          {/* Custom Additional Charges Section - NEW */}
+          {/* Custom Additional Charges Section - ALWAYS VISIBLE */}
           <div className="mb-8">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-medium text-gray-900">Additional Charges</h3>
-              {editing && (
-                <button
-                  onClick={handleAddCustomCharge}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add Charge
-                </button>
-              )}
+              {/* NO EDIT BUTTON NEEDED - Form is always visible */}
             </div>
 
+            {/* Display existing charges */}
             {formData.customAdditionalCharges.length > 0 ? (
-              <div className="space-y-3">
+              <div className="space-y-3 mb-6">
                 {formData.customAdditionalCharges.map((charge, index) => (
                   <div key={index} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
                     <div className="flex-1">
@@ -903,6 +789,7 @@ export default function QuotationPopup({ request, quotation, isOpen, onClose, on
                     <div className="text-right">
                       <div className="font-bold text-gray-900">₹{(charge.amount || 0).toLocaleString('en-IN')}</div>
                     </div>
+                    {/* Remove button (always visible when editing) */}
                     {editing && (
                       <button
                         onClick={() => handleRemoveCustomCharge(index)}
@@ -915,14 +802,14 @@ export default function QuotationPopup({ request, quotation, isOpen, onClose, on
                 ))}
               </div>
             ) : (
-              <div className="text-center py-4 text-gray-500 bg-gray-50 rounded-lg">
+              <div className="text-center py-4 text-gray-500 bg-gray-50 rounded-lg mb-6">
                 No additional charges added
               </div>
             )}
 
-            {/* Add Custom Charge Form */}
+            {/* Add Custom Charge Form - ALWAYS VISIBLE WHEN EDITING */}
             {editing && (
-              <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+              <div className="p-4 bg-gray-50 rounded-lg border border-gray-300">
                 <h4 className="font-medium text-gray-900 mb-3">Add New Charge</h4>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
@@ -932,7 +819,7 @@ export default function QuotationPopup({ request, quotation, isOpen, onClose, on
                       value={newCustomCharge.name}
                       onChange={(e) => setNewCustomCharge(prev => ({ ...prev, name: e.target.value }))}
                       className="w-full border rounded px-3 py-2 text-sm"
-                      placeholder="e.g., Shipping, Handling, etc."
+                      placeholder="e.g., Shipping, Handling, Tax, etc."
                     />
                   </div>
                   <div>
@@ -957,13 +844,18 @@ export default function QuotationPopup({ request, quotation, isOpen, onClose, on
                     />
                   </div>
                 </div>
-                <button
-                  onClick={handleAddCustomCharge}
-                  className="mt-4 flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add Charge
-                </button>
+                <div className="mt-4 flex items-center justify-between">
+                  <span className="text-sm text-gray-600">
+                    Charges will be added to the grand total
+                  </span>
+                  <button
+                    onClick={handleAddCustomCharge}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Charge
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -1024,7 +916,7 @@ export default function QuotationPopup({ request, quotation, isOpen, onClose, on
 
                 {/* Add Payment Step Form */}
                 {editing && (
-                  <div className="p-4 bg-gray-50 rounded-lg">
+                  <div className="p-4 bg-gray-50 rounded-lg border border-gray-300">
                     <h4 className="font-medium text-gray-900 mb-3">Add Payment Step</h4>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                       <div>
@@ -1076,10 +968,10 @@ export default function QuotationPopup({ request, quotation, isOpen, onClose, on
             )}
           </div>
 
-          {/* Totals Section - UPDATED with custom charges */}
+          {/* Totals Section - UPDATED: Removed shipping charges */}
           <div className="mb-8">
             <div className="max-w-md ml-auto">
-              <div className="space-y-3 bg-gray-50 p-6 rounded-lg">
+              <div className="space-y-3 bg-gray-50 p-6 rounded-lg border border-gray-300">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Subtotal (before GST):</span>
                   <span className="font-medium">₹{formData.subtotalBeforeGST.toLocaleString('en-IN')}</span>
@@ -1092,31 +984,20 @@ export default function QuotationPopup({ request, quotation, isOpen, onClose, on
                   <span className="text-gray-600">Total GST:</span>
                   <span className="font-medium">₹{formData.totalGST.toLocaleString('en-IN')}</span>
                 </div>
-                <div className="border-t pt-2">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Shipping Charges:</span>
-                    <div className="flex items-center gap-2">
-                      ₹
-                      <input
-                        type="number"
-                        value={formData.shippingCharges}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          shippingCharges: parseFloat(e.target.value) || 0
-                        }))}
-                        className="w-32 border rounded px-2 py-1 text-sm"
-                        min="0"
-                      />
-                    </div>
+                
+                {/* Custom Additional Charges */}
+                {formData.customAdditionalCharges.length > 0 && (
+                  <div className="border-t pt-2">
+                    <div className="text-sm font-medium text-gray-700 mb-2">Additional Charges:</div>
+                    {formData.customAdditionalCharges.map((charge, index) => (
+                      <div key={index} className="flex justify-between mb-1">
+                        <span className="text-gray-600">{charge.name}:</span>
+                        <span className="font-medium">₹{(charge.amount || 0).toLocaleString('en-IN')}</span>
+                      </div>
+                    ))}
                   </div>
-                  {/* Custom Additional Charges */}
-                  {formData.customAdditionalCharges.map((charge, index) => (
-                    <div key={index} className="flex justify-between mt-2">
-                      <span className="text-gray-600">{charge.name}:</span>
-                      <span className="font-medium">₹{(charge.amount || 0).toLocaleString('en-IN')}</span>
-                    </div>
-                  ))}
-                </div>
+                )}
+                
                 <div className="border-t pt-3">
                   <div className="flex justify-between text-lg font-bold">
                     <span>Grand Total:</span>
@@ -1125,7 +1006,6 @@ export default function QuotationPopup({ request, quotation, isOpen, onClose, on
                   <div className="text-sm text-gray-600 mt-1">
                     (Base: ₹{formData.subtotalBeforeGST.toLocaleString('en-IN')} +
                     GST: ₹{formData.totalGST.toLocaleString('en-IN')} +
-                    Shipping: ₹{formData.shippingCharges.toLocaleString('en-IN')} +
                     Additional: ₹{formData.customAdditionalCharges.reduce((sum, charge) => sum + charge.amount, 0).toLocaleString('en-IN')})
                   </div>
                 </div>
@@ -1165,8 +1045,12 @@ export default function QuotationPopup({ request, quotation, isOpen, onClose, on
               <div className="text-sm text-gray-600 mt-1">
                 Payment Steps: {formData.paymentSchedule.length} •
                 Total: {formData.paymentSchedule.reduce((sum, p) => sum + p.percentage, 0)}%
+                {formData.customAdditionalCharges.length > 0 && (
+                  <span className="ml-2">
+                    • Additional Charges: {formData.customAdditionalCharges.length}
+                  </span>
+                )}
               </div>
-              
             </div>
             <div className="flex items-center gap-3">
               <button

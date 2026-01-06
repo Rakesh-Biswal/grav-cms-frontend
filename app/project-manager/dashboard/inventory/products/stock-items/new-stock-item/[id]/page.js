@@ -5,7 +5,7 @@
 import { useState, useEffect, useRef } from "react"
 import { useRouter, useParams } from "next/navigation"
 import DashboardLayout from "@/components/DashboardLayout"
-import { 
+import {
   Plus,
   X,
   Upload,
@@ -45,10 +45,10 @@ export default function StockItemFormPage() {
   const params = useParams()
   const isEditMode = !!params.id
   const stockItemId = params.id
-  
+
   // States for different tabs
   const [activeTab, setActiveTab] = useState("general")
-  
+
   // States for form data
   const [formData, setFormData] = useState({
     name: "",
@@ -134,7 +134,7 @@ export default function StockItemFormPage() {
   // Fetch data on component mount
   useEffect(() => {
     fetchCreateData()
-    
+
     if (isEditMode && stockItemId) {
       fetchStockItemData()
     }
@@ -147,9 +147,9 @@ export default function StockItemFormPage() {
       const response = await fetch(`${API_URL}/api/cms/stock-items/data/create`, {
         credentials: "include"
       })
-      
+
       const result = await response.json()
-      
+
       if (result.success) {
         setData(result.data)
         // Set initial raw items suggestions (5-6 items)
@@ -175,12 +175,12 @@ export default function StockItemFormPage() {
       const response = await fetch(`${API_URL}/api/cms/stock-items/${stockItemId}`, {
         credentials: "include"
       })
-      
+
       const result = await response.json()
-      
+
       if (result.success) {
         const item = result.stockItem
-        
+
         // Set form data
         setFormData({
           name: item.name || "",
@@ -201,7 +201,7 @@ export default function StockItemFormPage() {
           minStock: item.minStock?.toString() || "",
           maxStock: item.maxStock?.toString() || ""
         })
-        
+
         // Set attributes
         if (item.attributes && Array.isArray(item.attributes)) {
           setAttributes(item.attributes.map(attr => ({
@@ -210,7 +210,7 @@ export default function StockItemFormPage() {
             values: attr.values || []
           })))
         }
-        
+
         // Set raw items
         if (item.rawItems && Array.isArray(item.rawItems)) {
           setSelectedRawItems(item.rawItems.map(rawItem => ({
@@ -223,7 +223,7 @@ export default function StockItemFormPage() {
             totalCost: rawItem.totalCost
           })))
         }
-        
+
         // Set operations
         if (item.operations && Array.isArray(item.operations)) {
           setOperations(item.operations.map(op => ({
@@ -237,7 +237,7 @@ export default function StockItemFormPage() {
             operatorCost: op.operatorCost?.toString() || "0"
           })))
         }
-        
+
         // Set miscellaneous costs
         if (item.miscellaneousCosts && Array.isArray(item.miscellaneousCosts)) {
           setMiscellaneousCosts(item.miscellaneousCosts.map((cost, index) => ({
@@ -247,13 +247,13 @@ export default function StockItemFormPage() {
             unit: cost.unit || "Fixed"
           })))
         }
-        
+
         // Set images
         if (item.images && Array.isArray(item.images)) {
           setImages(item.images)
           setImagePreviews(item.images)
         }
-        
+
       } else {
         toast.error(result.message || "Failed to fetch stock item data")
         router.push("/project-manager/dashboard/inventory/products/stock-items")
@@ -270,24 +270,24 @@ export default function StockItemFormPage() {
   // Calculate total cost
   const calculateTotalCost = () => {
     let total = parseFloat(formData.cost) || 0
-    
+
     // Add raw items cost
     selectedRawItems.forEach(item => {
       total += (item.quantity * item.cost) || 0
     })
-    
+
     // Add miscellaneous costs
     miscellaneousCosts.forEach(cost => {
       total += parseFloat(cost.amount) || 0
     })
-    
+
     // Add operations labor cost
     operations.forEach(op => {
       if (op.operatorCost) {
         total += parseFloat(op.operatorCost) || 0
       }
     })
-    
+
     return total
   }
 
@@ -295,7 +295,7 @@ export default function StockItemFormPage() {
   const calculateMargin = () => {
     const salesPrice = parseFloat(formData.salesPrice) || 0
     const totalCost = calculateTotalCost()
-    
+
     if (totalCost === 0) return 0
     return ((salesPrice - totalCost) / totalCost * 100).toFixed(1)
   }
@@ -303,24 +303,24 @@ export default function StockItemFormPage() {
   // Calculate operator cost for duration
   const calculateOperatorCost = (operatorSalary, minutes, seconds) => {
     if (!operatorSalary || operatorSalary <= 0) return 0
-    
+
     const totalSeconds = (parseInt(minutes) || 0) * 60 + (parseInt(seconds) || 0)
     const totalMinutes = totalSeconds / 60
-    
+
     // Calculate cost per minute
     const salaryPerMonth = parseFloat(operatorSalary)
     const costPerMinute = salaryPerMonth / MINUTES_PER_MONTH
-    
+
     // Calculate cost for this operation
     const operatorCost = costPerMinute * totalMinutes
-    
+
     return operatorCost
   }
 
   // Handle machine selection
   const handleMachineSelect = (machine) => {
-    setNewOperation(prev => ({ 
-      ...prev, 
+    setNewOperation(prev => ({
+      ...prev,
       machine: machine.name,
       machineType: machine.type,
       operatorSalary: data.averageOperatorSalary?.toString() || ""
@@ -332,19 +332,19 @@ export default function StockItemFormPage() {
   const addOperation = () => {
     if (newOperation.type.trim() && (newOperation.minutes || newOperation.seconds)) {
       const totalSeconds = (parseInt(newOperation.minutes) || 0) * 60 + (parseInt(newOperation.seconds) || 0)
-      
+
       // Calculate operator cost
       const operatorCost = calculateOperatorCost(
         newOperation.operatorSalary,
         newOperation.minutes,
         newOperation.seconds
       )
-      
+
       const newOp = {
         id: operations.length + 1,
         type: newOperation.type.trim(),
-        machine: newOperation.machine || "",
-        machineType: newOperation.machineType || "",
+        machine: "", // Keep empty since we're only using machineType
+        machineType: newOperation.machineType || "", // Use machineType
         minutes: newOperation.minutes || "0",
         seconds: newOperation.seconds || "0",
         duration: `${newOperation.minutes || "0"}m ${newOperation.seconds || "0"}s`,
@@ -352,7 +352,7 @@ export default function StockItemFormPage() {
         operatorSalary: newOperation.operatorSalary || "",
         operatorCost: operatorCost.toFixed(2)
       }
-      
+
       setOperations([...operations, newOp])
       setNewOperation({
         type: "",
@@ -373,12 +373,12 @@ export default function StockItemFormPage() {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('upload_preset', 'stock_items_preset'); // Your Cloudinary preset
-      
+
       const response = await fetch('https://api.cloudinary.com/v1_1/your-cloud-name/image/upload', {
         method: 'POST',
         body: formData
       });
-      
+
       const result = await response.json();
       return result.secure_url;
     } catch (error) {
@@ -414,7 +414,7 @@ export default function StockItemFormPage() {
       })
 
       const uploadedUrls = await Promise.all(uploadPromises)
-      
+
       setImages(prev => [...prev, ...uploadedUrls])
       toast.success(`${files.length} image(s) uploaded successfully`)
     } catch (error) {
@@ -446,7 +446,7 @@ export default function StockItemFormPage() {
 
   // Check if attribute exists
   const attributeExists = (attrName) => {
-    return data.attributes?.some(attr => 
+    return data.attributes?.some(attr =>
       attr.name.toLowerCase() === attrName.toLowerCase()
     ) || false
   }
@@ -544,21 +544,22 @@ export default function StockItemFormPage() {
   }
 
   // Handle raw item search
-  useEffect(() => {
-    if (rawItemSearch.length > 0) {
-      const suggestions = allRawItems.filter(item =>
-        item.name.toLowerCase().includes(rawItemSearch.toLowerCase()) ||
-        item.sku.toLowerCase().includes(rawItemSearch.toLowerCase()) ||
-        item.category.toLowerCase().includes(rawItemSearch.toLowerCase())
-      )
-      setRawItemSuggestions(suggestions.slice(0, 10))
-      setShowRawItemSuggestions(true)
-    } else {
-      // Show initial 5-6 suggestions
-      setRawItemSuggestions(allRawItems.slice(0, 6))
-      setShowRawItemSuggestions(false)
-    }
-  }, [rawItemSearch, allRawItems])
+  // Handle raw item search - UPDATED to include all raw items (even 0 quantity)
+useEffect(() => {
+  if (rawItemSearch.length > 0) {
+    const suggestions = allRawItems.filter(item =>
+      item.name.toLowerCase().includes(rawItemSearch.toLowerCase()) ||
+      item.sku.toLowerCase().includes(rawItemSearch.toLowerCase()) ||
+      item.category.toLowerCase().includes(rawItemSearch.toLowerCase())
+    )
+    setRawItemSuggestions(suggestions.slice(0, 10))
+    setShowRawItemSuggestions(true)
+  } else {
+    // Show all raw items including those with 0 quantity
+    setRawItemSuggestions(allRawItems.slice(0, 10))
+    setShowRawItemSuggestions(false)
+  }
+}, [rawItemSearch, allRawItems])
 
   // Close suggestions when clicking outside
   useEffect(() => {
@@ -615,14 +616,20 @@ export default function StockItemFormPage() {
         op.toLowerCase().includes(value.toLowerCase())
       ) || []
       setOperationTypeSuggestions(suggestions.slice(0, 5))
-      
-      // Auto-suggest machines based on operation type
+
+      // Auto-suggest machine types based on operation type
       if (data.machines && data.machines.length > 0) {
+        // Get unique machine types
         const machineTypes = [...new Set(data.machines.map(m => m.type))]
-        const matchingMachines = data.machines.filter(m => 
-          m.type.toLowerCase().includes(value.toLowerCase()) ||
-          machineTypes.some(type => type.toLowerCase().includes(value.toLowerCase()))
+        const matchingMachineTypes = machineTypes.filter(type =>
+          type.toLowerCase().includes(value.toLowerCase())
         )
+
+        // Get machine objects for the matching types
+        const matchingMachines = data.machines.filter(m =>
+          matchingMachineTypes.includes(m.type)
+        )
+
         setMachineSuggestions(matchingMachines.slice(0, 5))
       }
     } else {
@@ -639,16 +646,24 @@ export default function StockItemFormPage() {
 
   // Handle machine input
   const handleMachineInput = (value) => {
-    setNewOperation(prev => ({ ...prev, machine: value }))
+    setNewOperation(prev => ({ ...prev, machineType: value }))
     if (value.length > 0) {
       const suggestions = data.machines?.filter(machine =>
-        machine.name.toLowerCase().includes(value.toLowerCase()) ||
         machine.type.toLowerCase().includes(value.toLowerCase())
       ) || []
-      setMachineSuggestions(suggestions.slice(0, 5))
+      setMachineSuggestions(suggestions)
     } else {
       setMachineSuggestions([])
     }
+  }
+
+  const handleMachineTypeSelect = (machineType) => {
+    setNewOperation(prev => ({
+      ...prev,
+      machineType,
+      operatorSalary: data.averageOperatorSalary?.toString() || ""
+    }))
+    setMachineSuggestions([])
   }
 
   // Update miscellaneous cost
@@ -681,12 +696,12 @@ export default function StockItemFormPage() {
   // Handle form changes
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target
-    
+
     setFormData(prev => ({
       ...prev,
       [name]: type === "checkbox" ? checked : value
     }))
-    
+
     // Clear error for this field
     if (errors[name]) {
       setErrors(prev => ({
@@ -699,31 +714,31 @@ export default function StockItemFormPage() {
   // Validate form
   const validateForm = () => {
     const newErrors = {}
-    
+
     if (!formData.name.trim()) {
       newErrors.name = "Product name is required"
     }
-    
+
     if (!formData.category) {
       newErrors.category = "Category is required"
     }
-    
+
     if (!formData.salesPrice || isNaN(formData.salesPrice) || parseFloat(formData.salesPrice) <= 0) {
       newErrors.salesPrice = "Valid sales price is required"
     }
-    
+
     if (!formData.minStock || isNaN(formData.minStock) || parseFloat(formData.minStock) < 0) {
       newErrors.minStock = "Valid minimum stock is required"
     }
-    
+
     if (!formData.maxStock || isNaN(formData.maxStock) || parseFloat(formData.maxStock) < 0) {
       newErrors.maxStock = "Valid maximum stock is required"
     }
-    
+
     if (parseFloat(formData.minStock) >= parseFloat(formData.maxStock)) {
       newErrors.maxStock = "Maximum stock must be greater than minimum stock"
     }
-    
+
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
@@ -731,11 +746,11 @@ export default function StockItemFormPage() {
   // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault()
-    
+
     if (!validateForm()) return
-    
+
     setSubmitting(true)
-    
+
     try {
       const submitData = {
         name: formData.name.trim(),
@@ -764,8 +779,8 @@ export default function StockItemFormPage() {
         })),
         operations: operations.map(op => ({
           type: op.type,
-          machine: op.machine,
-          machineType: op.machineType,
+          machine: "", // Keep empty
+          machineType: op.machineType, // Use machineType
           minutes: parseFloat(op.minutes) || 0,
           seconds: parseFloat(op.seconds) || 0,
           operatorSalary: parseFloat(op.operatorSalary) || 0,
@@ -778,13 +793,13 @@ export default function StockItemFormPage() {
         })),
         images: images
       }
-      
-      const url = isEditMode 
+
+      const url = isEditMode
         ? `${API_URL}/api/cms/stock-items/${stockItemId}`
         : `${API_URL}/api/cms/stock-items`
-      
+
       const method = isEditMode ? "PUT" : "POST"
-      
+
       const response = await fetch(url, {
         method,
         headers: {
@@ -793,9 +808,9 @@ export default function StockItemFormPage() {
         credentials: "include",
         body: JSON.stringify(submitData)
       })
-      
+
       const result = await response.json()
-      
+
       if (result.success) {
         toast.success(isEditMode ? "Stock item updated successfully!" : "Stock item created successfully!")
         router.push("/project-manager/dashboard/inventory/products/stock-items")
@@ -863,8 +878,8 @@ export default function StockItemFormPage() {
   useEffect(() => {
     if (formData.category && !formData.minStock && !isEditMode) {
       const baseMinStock = formData.category.toLowerCase().includes("shirt") ? 50 :
-                          formData.category.toLowerCase().includes("jeans") ? 30 :
-                          formData.category.toLowerCase().includes("ethnic") ? 20 : 25
+        formData.category.toLowerCase().includes("jeans") ? 30 :
+          formData.category.toLowerCase().includes("ethnic") ? 20 : 25
       setFormData(prev => ({
         ...prev,
         minStock: baseMinStock.toString(),
@@ -998,11 +1013,10 @@ export default function StockItemFormPage() {
                     key={tab}
                     type="button"
                     onClick={() => setActiveTab(tab)}
-                    className={`px-6 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-                      activeTab === tab
-                        ? "border-blue-500 text-blue-600"
-                        : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                    }`}
+                    className={`px-6 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${activeTab === tab
+                      ? "border-blue-500 text-blue-600"
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                      }`}
                   >
                     {tab === "general" && "General Information"}
                     {tab === "attributes" && "Attributes & Variants"}
@@ -1031,9 +1045,8 @@ export default function StockItemFormPage() {
                           name="name"
                           value={formData.name}
                           onChange={handleChange}
-                          className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
-                            errors.name ? "border-red-300" : "border-gray-300"
-                          }`}
+                          className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${errors.name ? "border-red-300" : "border-gray-300"
+                            }`}
                           placeholder="e.g., Men's Formal Shirt"
                         />
                         {errors.name && (
@@ -1069,9 +1082,8 @@ export default function StockItemFormPage() {
                           name="category"
                           value={formData.category}
                           onChange={handleChange}
-                          className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
-                            errors.category ? "border-red-300" : "border-gray-300"
-                          }`}
+                          className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${errors.category ? "border-red-300" : "border-gray-300"
+                            }`}
                         >
                           <option value="">Select Category</option>
                           {data.categories?.map(category => (
@@ -1178,9 +1190,8 @@ export default function StockItemFormPage() {
                             value={formData.minStock}
                             onChange={handleChange}
                             min="0"
-                            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
-                              errors.minStock ? "border-red-300" : "border-gray-300"
-                            }`}
+                            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${errors.minStock ? "border-red-300" : "border-gray-300"
+                              }`}
                             placeholder="e.g., 50"
                           />
                           {errors.minStock && (
@@ -1198,9 +1209,8 @@ export default function StockItemFormPage() {
                             value={formData.maxStock}
                             onChange={handleChange}
                             min="0"
-                            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
-                              errors.maxStock ? "border-red-300" : "border-gray-300"
-                            }`}
+                            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${errors.maxStock ? "border-red-300" : "border-gray-300"
+                              }`}
                             placeholder="e.g., 200"
                           />
                           {errors.maxStock && (
@@ -1291,7 +1301,7 @@ export default function StockItemFormPage() {
                           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
                           placeholder="e.g., color, size"
                         />
-                        
+
                         {/* Attribute Suggestions */}
                         {attributeSuggestions.length > 0 && (
                           <div className="mt-1 border border-gray-200 rounded-md bg-white shadow-lg z-10 absolute w-full">
@@ -1307,7 +1317,7 @@ export default function StockItemFormPage() {
                             ))}
                           </div>
                         )}
-                        
+
                         {/* Create new attribute button - only show if not found in suggestions */}
                         {newAttribute && attributeSuggestions.length === 0 && !attributeExists(newAttribute.trim()) && (
                           <button
@@ -1330,12 +1340,11 @@ export default function StockItemFormPage() {
                           value={newValue}
                           onChange={(e) => handleValueInput(e.target.value)}
                           disabled={!selectedAttribute}
-                          className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
-                            !selectedAttribute ? "bg-gray-100" : "border-gray-300"
-                          }`}
+                          className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${!selectedAttribute ? "bg-gray-100" : "border-gray-300"
+                            }`}
                           placeholder={selectedAttribute ? "Add value..." : "Select attribute first"}
                         />
-                        
+
                         {/* Value Suggestions - Auto show when attribute is selected */}
                         {selectedAttribute && valueSuggestions.length > 0 && (
                           <div className="mt-1 border border-gray-200 rounded-md bg-white shadow-lg z-10 absolute w-full">
@@ -1353,7 +1362,7 @@ export default function StockItemFormPage() {
                             ))}
                           </div>
                         )}
-                        
+
                         {/* Add value button */}
                         {selectedAttribute && newValue.trim() && (
                           <button
@@ -1412,7 +1421,7 @@ export default function StockItemFormPage() {
                               </button>
                             </div>
                           </div>
-                          
+
                           {selectedAttribute?.id === attr.id && (
                             <div className="mb-3">
                               <div className="flex flex-wrap gap-2">
@@ -1579,6 +1588,7 @@ export default function StockItemFormPage() {
               )}
 
               {/* Operations Tab */}
+              {/* Operations Tab */}
               {activeTab === "operations" && (
                 <div className="space-y-6">
                   <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
@@ -1613,7 +1623,7 @@ export default function StockItemFormPage() {
                             placeholder="e.g., Cutting, Stitching"
                           />
                         </div>
-                        
+
                         {/* Operation Type Suggestions */}
                         {operationTypeSuggestions.length > 0 && (
                           <div className="mt-1 border border-gray-200 rounded-md bg-white shadow-lg z-10 absolute w-full">
@@ -1630,34 +1640,34 @@ export default function StockItemFormPage() {
                         )}
                       </div>
 
-                      {/* Machine Input */}
+                      {/* Machine Type Input */}
                       <div className="relative">
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Assign Machine (Optional)
+                          Machine Type
                         </label>
                         <div className="relative">
                           <Settings className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                           <input
                             type="text"
-                            value={newOperation.machine}
+                            value={newOperation.machineType}
                             onChange={(e) => handleMachineInput(e.target.value)}
                             className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-                            placeholder="e.g., Sewing Machine 1"
+                            placeholder="e.g., Sewing, Cutting"
                           />
                         </div>
-                        
-                        {/* Machine Suggestions */}
+
+                        {/* Machine Type Suggestions - Only show unique machine types */}
                         {machineSuggestions.length > 0 && (
                           <div className="mt-1 border border-gray-200 rounded-md bg-white shadow-lg z-10 absolute w-full">
-                            {machineSuggestions.map((machine) => (
+                            {Array.from(new Set(machineSuggestions.map(m => m.type))).map((machineType, index) => (
                               <div
-                                key={machine.id}
-                                onClick={() => handleMachineSelect(machine)}
+                                key={index}
+                                onClick={() => handleMachineTypeSelect(machineType)}
                                 className="px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm"
                               >
-                                <div className="font-medium">{machine.name}</div>
+                                <div className="font-medium">{machineType}</div>
                                 <div className="text-xs text-gray-500">
-                                  Type: {machine.type} | Model: {machine.model}
+                                  Available machines: {machineSuggestions.filter(m => m.type === machineType).length}
                                 </div>
                               </div>
                             ))}
@@ -1676,7 +1686,7 @@ export default function StockItemFormPage() {
                             type="number"
                             min="0"
                             value={newOperation.minutes}
-                            onChange={(e) => setNewOperation({...newOperation, minutes: e.target.value})}
+                            onChange={(e) => setNewOperation({ ...newOperation, minutes: e.target.value })}
                             className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
                             placeholder="Min"
                           />
@@ -1695,7 +1705,7 @@ export default function StockItemFormPage() {
                             min="0"
                             max="59"
                             value={newOperation.seconds}
-                            onChange={(e) => setNewOperation({...newOperation, seconds: e.target.value})}
+                            onChange={(e) => setNewOperation({ ...newOperation, seconds: e.target.value })}
                             className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
                             placeholder="Sec"
                           />
@@ -1728,11 +1738,25 @@ export default function StockItemFormPage() {
                       <input
                         type="text"
                         value={newOperation.type}
-                        onChange={(e) => setNewOperation({...newOperation, type: e.target.value})}
+                        onChange={(e) => setNewOperation({ ...newOperation, type: e.target.value })}
                         className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         placeholder="Or enter custom operation type..."
                       />
                     </div>
+
+                    {/* Clear Machine Type Button */}
+                    {newOperation.machineType && (
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => setNewOperation(prev => ({ ...prev, machineType: "", machine: "" }))}
+                          className="text-sm text-red-600 hover:text-red-800 flex items-center gap-1"
+                        >
+                          <X className="w-3 h-3" />
+                          Clear Machine Type
+                        </button>
+                      </div>
+                    )}
 
                     {/* Add Operation Button */}
                     <div className="flex justify-end">
@@ -1756,7 +1780,7 @@ export default function StockItemFormPage() {
                                 Operation Type
                               </th>
                               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Machine
+                                Machine Type
                               </th>
                               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Duration
@@ -1778,8 +1802,12 @@ export default function StockItemFormPage() {
                                 <td className="px-4 py-3">
                                   <div className="text-sm font-medium text-gray-900">{op.type}</div>
                                 </td>
-                                <td className="px-4 py-3 text-sm text-gray-900">
-                                  {op.machine || "-"}
+                                <td className="px-4 py-3">
+                                  {op.machineType ? (
+                                    <div className="text-sm text-gray-900">{op.machineType}</div>
+                                  ) : (
+                                    <div className="text-sm text-gray-400 italic">Not assigned</div>
+                                  )}
                                 </td>
                                 <td className="px-4 py-3 text-sm text-gray-900">
                                   {op.duration}
@@ -1833,7 +1861,7 @@ export default function StockItemFormPage() {
                     {/* Left Column - Sales */}
                     <div className="space-y-4">
                       <h4 className="text-sm font-medium text-gray-800">Sales</h4>
-                      
+
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Sales Price *
@@ -1847,9 +1875,8 @@ export default function StockItemFormPage() {
                             step="0.01"
                             value={formData.salesPrice}
                             onChange={handleChange}
-                            className={`w-full pl-10 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
-                              errors.salesPrice ? "border-red-300" : "border-gray-300"
-                            }`}
+                            className={`w-full pl-10 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${errors.salesPrice ? "border-red-300" : "border-gray-300"
+                              }`}
                           />
                         </div>
                         {errors.salesPrice && (
@@ -1889,7 +1916,7 @@ export default function StockItemFormPage() {
                     {/* Right Column - Cost & Profit */}
                     <div className="space-y-4">
                       <h4 className="text-sm font-medium text-gray-800">Cost & Profit</h4>
-                      
+
                       {/* Base Cost */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1922,7 +1949,7 @@ export default function StockItemFormPage() {
                             + Add Cost
                           </button>
                         </div>
-                        
+
                         <div className="space-y-2">
                           {miscellaneousCosts.map((cost) => (
                             <div key={cost.id} className="flex gap-2 items-center">

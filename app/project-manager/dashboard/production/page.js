@@ -18,10 +18,9 @@ export default function ProductionPage() {
 
   const dropdownMenus = {
     tenders: [
+      { name: "Manufacturing Order's", action: () => router.push("/project-manager/dashboard/production/manufacturing-orders") },
       { name: "Register New Tender", action: () => router.push("/project-manager/dashboard/production/new-tender") },
       { name: "View Active Tenders", action: () => router.push("/project-manager/dashboard/production/tenders/active") },
-      { name: "View Completed Tenders", action: () => router.push("/project-manager/dashboard/production/tenders/completed") },
-      { name: "Tender Archive", action: () => router.push("/project-manager/dashboard/production/tenders/archive") },
     ],
     
     configurations: [
@@ -101,7 +100,7 @@ export default function ProductionPage() {
       description: "Assign workers to orders",
       icon: <Users className="h-5 w-5" />,
       action: () => router.push("/project-manager/dashboard/production/configurations/teams"),
-      color: "bg-purple-100 text-purple-700 hover:bg-purple-200"
+      color: "bg-purple-250 text-purple-700 hover:bg-purple-200"
     }
   ]
 

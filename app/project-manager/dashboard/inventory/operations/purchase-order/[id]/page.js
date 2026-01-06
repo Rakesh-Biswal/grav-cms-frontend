@@ -1,6 +1,8 @@
-// /project-manager/dashboard/inventory/operations/purchase-order/[id]/page.js
+// /project-manager/dashboard/inventory/operations/purchase-order/[id]/page.js/
 
 "use client"
+
+
 
 import { useState, useEffect } from "react"
 import {
@@ -32,6 +34,8 @@ import DashboardLayout from "@/components/DashboardLayout"
 import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import toast from "react-hot-toast"
+import { DownloadCloudIcon } from "lucide-react"
+import PurchaseOrderPDFDownload from "@/components/inventory/PurchaseOrderPDFGenerator";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
 
@@ -39,7 +43,7 @@ export default function PurchaseOrderViewPage() {
   const params = useParams()
   const router = useRouter()
   const poId = params?.id
-  
+
   const [purchaseOrder, setPurchaseOrder] = useState(null)
   const [loading, setLoading] = useState(true)
   const [updatingPayment, setUpdatingPayment] = useState(false)
@@ -63,16 +67,16 @@ export default function PurchaseOrderViewPage() {
       const response = await fetch(`${API_URL}/api/cms/inventory/operations/purchase-orders/${poId}`, {
         credentials: "include"
       })
-      
+
       const result = await response.json()
-      
+
       if (result.success) {
         setPurchaseOrder(result.purchaseOrder)
-        
+
         // Initialize payment data with remaining amount
         const totalPaid = result.purchaseOrder.payments?.reduce((sum, payment) => sum + payment.amount, 0) || 0
         const remainingAmount = result.purchaseOrder.totalAmount - totalPaid
-        
+
         setPaymentData(prev => ({
           ...prev,
           amount: remainingAmount
@@ -162,7 +166,7 @@ export default function PurchaseOrderViewPage() {
 
   const handleChangeStatus = async (newStatus) => {
     if (!confirm(`Are you sure you want to change status to ${newStatus}?`)) return
-    
+
     try {
       const response = await fetch(`${API_URL}/api/cms/inventory/operations/purchase-orders/${poId}/status`, {
         method: "PATCH",
@@ -175,9 +179,9 @@ export default function PurchaseOrderViewPage() {
           notes: `Status changed to ${newStatus}`
         })
       })
-      
+
       const result = await response.json()
-      
+
       if (result.success) {
         toast.success(`Purchase order status updated to ${newStatus}`)
         fetchPurchaseOrder()
@@ -192,14 +196,14 @@ export default function PurchaseOrderViewPage() {
 
   const handlePaymentSubmit = async (e) => {
     e.preventDefault()
-    
+
     if (paymentData.amount <= 0) {
       toast.error("Please enter a valid payment amount")
       return
     }
-    
+
     setUpdatingPayment(true)
-    
+
     try {
       // First, let's update the payment status
       const response = await fetch(`${API_URL}/api/cms/inventory/operations/purchase-orders/${poId}/payment`, {
@@ -215,14 +219,14 @@ export default function PurchaseOrderViewPage() {
           notes: paymentData.notes
         })
       })
-      
+
       const result = await response.json()
-      
+
       if (result.success) {
         toast.success("Payment recorded successfully")
         setShowPaymentModal(false)
         fetchPurchaseOrder()
-        
+
         // Reset payment form
         setPaymentData({
           amount: 0,
@@ -252,9 +256,9 @@ export default function PurchaseOrderViewPage() {
         credentials: "include",
         body: JSON.stringify({ status })
       })
-      
+
       const result = await response.json()
-      
+
       if (result.success) {
         toast.success(`Payment status updated to ${status}`)
         fetchPurchaseOrder()
@@ -330,7 +334,7 @@ export default function PurchaseOrderViewPage() {
               Created on {formatDate(purchaseOrder.orderDate)} • Vendor: {purchaseOrder.vendorName || purchaseOrder.vendor?.companyName}
             </p>
           </div>
-          
+
           <div className="flex items-center gap-3">
             <button
               onClick={fetchPurchaseOrder}
@@ -340,7 +344,7 @@ export default function PurchaseOrderViewPage() {
               <RefreshCw className="w-4 h-4" />
               Refresh
             </button>
-            
+
             {purchaseOrder.status === "DRAFT" && (
               <Link
                 href={`/project-manager/dashboard/inventory/operations/purchase-order/new-edit-receipt/${poId}`}
@@ -350,15 +354,13 @@ export default function PurchaseOrderViewPage() {
                 Edit PO
               </Link>
             )}
-            
-            <button
-              onClick={handleDownload}
-              className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
-            >
-              <Download className="w-4 h-4" />
-              Download
-            </button>
-            
+
+            {/* Replace the old download button with this */}
+            <PurchaseOrderPDFDownload
+              purchaseOrder={purchaseOrder}
+              vendor={purchaseOrder.vendor}
+            />
+
             <button
               onClick={handlePrint}
               className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-white rounded-md hover:bg-gray-900"
@@ -384,7 +386,7 @@ export default function PurchaseOrderViewPage() {
               </div>
             </div>
           </div>
-          
+
           <div className="bg-white border border-gray-200 rounded-md p-4">
             <div className="flex items-center justify-between">
               <div>
@@ -401,7 +403,7 @@ export default function PurchaseOrderViewPage() {
               </div>
             </div>
           </div>
-          
+
           <div className="bg-white border border-gray-200 rounded-md p-4">
             <div className="flex items-center justify-between">
               <div>
@@ -418,7 +420,7 @@ export default function PurchaseOrderViewPage() {
               </div>
             </div>
           </div>
-          
+
           <div className="bg-white border border-gray-200 rounded-md p-4">
             <div className="flex items-center justify-between">
               <div>
@@ -447,31 +449,31 @@ export default function PurchaseOrderViewPage() {
                 <FileText className="w-5 h-5" />
                 Order Details
               </h2>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <div className="text-sm font-medium text-gray-700">PO Number</div>
                   <div className="text-lg font-semibold text-gray-900 font-mono">{purchaseOrder.poNumber}</div>
                 </div>
-                
+
                 <div>
                   <div className="text-sm font-medium text-gray-700">Order Date</div>
                   <div className="text-lg font-semibold text-gray-900">{formatDate(purchaseOrder.orderDate)}</div>
                 </div>
-                
+
                 <div>
                   <div className="text-sm font-medium text-gray-700">Expected Delivery</div>
                   <div className="text-lg font-semibold text-gray-900">
                     {purchaseOrder.expectedDeliveryDate ? formatDate(purchaseOrder.expectedDeliveryDate) : "Not specified"}
                   </div>
                 </div>
-                
+
                 <div>
                   <div className="text-sm font-medium text-gray-700">Payment Terms</div>
                   <div className="text-lg font-semibold text-gray-900">{purchaseOrder.paymentTerms || "Not specified"}</div>
                 </div>
               </div>
-              
+
               <div className="mt-4 pt-4 border-t border-gray-200">
                 <div className="text-sm font-medium text-gray-700 mb-2">Notes</div>
                 <div className="text-gray-600 whitespace-pre-wrap">
@@ -491,7 +493,7 @@ export default function PurchaseOrderViewPage() {
                   {purchaseOrder.items.length} item{purchaseOrder.items.length !== 1 ? 's' : ''}
                 </div>
               </div>
-              
+
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
@@ -542,11 +544,10 @@ export default function PurchaseOrderViewPage() {
                           </div>
                         </td>
                         <td className="px-4 py-4">
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                            item.status === "COMPLETED" ? "bg-green-100 text-green-800" :
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${item.status === "COMPLETED" ? "bg-green-100 text-green-800" :
                             item.status === "PARTIALLY_RECEIVED" ? "bg-yellow-100 text-yellow-800" :
-                            "bg-gray-100 text-gray-800"
-                          }`}>
+                              "bg-gray-100 text-gray-800"
+                            }`}>
                             {item.status?.replace("_", " ") || "PENDING"}
                           </span>
                         </td>
@@ -555,7 +556,7 @@ export default function PurchaseOrderViewPage() {
                   </tbody>
                 </table>
               </div>
-              
+
               {/* Items Summary */}
               <div className="mt-4 pt-4 border-t border-gray-200">
                 <div className="flex justify-end">
@@ -594,7 +595,7 @@ export default function PurchaseOrderViewPage() {
                   <Truck className="w-5 h-5" />
                   Delivery History
                 </h2>
-                
+
                 <div className="space-y-4">
                   {purchaseOrder.deliveries.map((delivery, index) => (
                     <div key={index} className="border border-gray-200 rounded-md p-4">
@@ -636,7 +637,7 @@ export default function PurchaseOrderViewPage() {
                 <Users className="w-5 h-5" />
                 Vendor Information
               </h2>
-              
+
               <div className="space-y-3">
                 <div>
                   <div className="text-sm font-medium text-gray-700">Vendor Name</div>
@@ -644,28 +645,28 @@ export default function PurchaseOrderViewPage() {
                     {purchaseOrder.vendorName || purchaseOrder.vendor?.companyName}
                   </div>
                 </div>
-                
+
                 {purchaseOrder.vendor?.contactPerson && (
                   <div>
                     <div className="text-sm font-medium text-gray-700">Contact Person</div>
                     <div className="text-gray-900">{purchaseOrder.vendor.contactPerson}</div>
                   </div>
                 )}
-                
+
                 {purchaseOrder.vendor?.phone && (
                   <div>
                     <div className="text-sm font-medium text-gray-700">Phone</div>
                     <div className="text-gray-900">{purchaseOrder.vendor.phone}</div>
                   </div>
                 )}
-                
+
                 {purchaseOrder.vendor?.email && (
                   <div>
                     <div className="text-sm font-medium text-gray-700">Email</div>
                     <div className="text-gray-900">{purchaseOrder.vendor.email}</div>
                   </div>
                 )}
-                
+
                 {purchaseOrder.vendor?.gstNumber && (
                   <div>
                     <div className="text-sm font-medium text-gray-700">GST Number</div>
@@ -673,7 +674,7 @@ export default function PurchaseOrderViewPage() {
                   </div>
                 )}
               </div>
-              
+
               <div className="mt-4 pt-4 border-t border-gray-200">
                 <Link
                   href={`/project-manager/dashboard/inventory/vendors-buyer/vendors/${purchaseOrder.vendor?._id || purchaseOrder.vendor}`}
@@ -691,7 +692,7 @@ export default function PurchaseOrderViewPage() {
                 <CreditCard className="w-5 h-5" />
                 Payment Information
               </h2>
-              
+
               <div className="space-y-4">
                 <div>
                   <div className="flex items-center justify-between mb-2">
@@ -705,7 +706,7 @@ export default function PurchaseOrderViewPage() {
                     />
                   </div>
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <div className="text-sm font-medium text-gray-700">Total Amount</div>
@@ -716,19 +717,19 @@ export default function PurchaseOrderViewPage() {
                     <div className="text-lg font-semibold text-green-600">{formatCurrency(totalPaid)}</div>
                   </div>
                 </div>
-                
+
                 <div>
                   <div className="text-sm font-medium text-gray-700">Remaining Amount</div>
                   <div className="text-xl font-semibold text-red-600">{formatCurrency(remainingPayment)}</div>
                 </div>
-                
+
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-gray-700">Payment Status</span>
                   <span className={`px-2 py-1 text-xs font-medium rounded-full ${getPaymentStatusColor(purchaseOrder.paymentStatus)}`}>
                     {purchaseOrder.paymentStatus}
                   </span>
                 </div>
-                
+
                 <div className="pt-4 border-t border-gray-200 space-y-2">
                   <button
                     onClick={() => setShowPaymentModal(true)}
@@ -738,7 +739,7 @@ export default function PurchaseOrderViewPage() {
                     <CreditCard className="w-4 h-4" />
                     Record Payment
                   </button>
-                  
+
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       onClick={() => updatePaymentStatus("PARTIAL")}
@@ -765,7 +766,7 @@ export default function PurchaseOrderViewPage() {
                 <MoreVertical className="w-5 h-5" />
                 Quick Actions
               </h2>
-              
+
               <div className="space-y-2">
                 {purchaseOrder.status === "DRAFT" && (
                   <button
@@ -776,7 +777,7 @@ export default function PurchaseOrderViewPage() {
                     Issue Purchase Order
                   </button>
                 )}
-                
+
                 {purchaseOrder.status === "ISSUED" && (
                   <button
                     onClick={() => handleChangeStatus("CANCELLED")}
@@ -786,7 +787,7 @@ export default function PurchaseOrderViewPage() {
                     Cancel Order
                   </button>
                 )}
-                
+
                 <Link
                   href={`/project-manager/dashboard/inventory/operations/purchase-order/new-edit-receipt/${poId}`}
                   className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded-md"
@@ -794,7 +795,7 @@ export default function PurchaseOrderViewPage() {
                   <Edit className="w-4 h-4" />
                   Edit Purchase Order
                 </Link>
-                
+
                 <Link
                   href={`/project-manager/dashboard/inventory/operations/purchase-order/${poId}/receive`}
                   className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 rounded-md"
@@ -802,7 +803,7 @@ export default function PurchaseOrderViewPage() {
                   <Truck className="w-4 h-4" />
                   Receive Delivery
                 </Link>
-                
+
                 <button
                   onClick={handlePrint}
                   className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200 rounded-md"
@@ -822,7 +823,7 @@ export default function PurchaseOrderViewPage() {
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
             <div className="p-6">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Record Payment</h3>
-              
+
               <form onSubmit={handlePaymentSubmit}>
                 <div className="space-y-4">
                   <div>
@@ -843,7 +844,7 @@ export default function PurchaseOrderViewPage() {
                       Remaining amount: {formatCurrency(remainingPayment)}
                     </div>
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Payment Method
@@ -859,7 +860,7 @@ export default function PurchaseOrderViewPage() {
                       <option value="ONLINE">Online Payment</option>
                     </select>
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Reference Number
@@ -872,7 +873,7 @@ export default function PurchaseOrderViewPage() {
                       placeholder="e.g., Transaction ID, Cheque No."
                     />
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Notes
@@ -886,7 +887,7 @@ export default function PurchaseOrderViewPage() {
                     />
                   </div>
                 </div>
-                
+
                 <div className="mt-6 flex items-center justify-end gap-3">
                   <button
                     type="button"

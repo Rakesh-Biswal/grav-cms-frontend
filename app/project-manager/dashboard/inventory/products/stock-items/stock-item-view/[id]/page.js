@@ -978,10 +978,8 @@ export default function StockItemViewPage() {
                               <td className="px-4 py-3 text-sm text-gray-900">
                                 <div className="flex items-center gap-2">
                                   <Settings className="w-4 h-4 text-gray-400" />
-                                  {op.machine || "N/A"}
-                                  {op.machineType && (
-                                    <span className="text-xs text-gray-500">({op.machineType})</span>
-                                  )}
+                                  {op.machineType || "N/A"}
+                                  
                                 </div>
                               </td>
                               <td className="px-4 py-3 text-sm text-gray-900">

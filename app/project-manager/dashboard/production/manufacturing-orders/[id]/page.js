@@ -91,6 +91,7 @@ export default function ManufacturingOrderDetailsPage() {
 
     const getWorkOrderStatusColor = (status) => {
         switch (status) {
+            case "pending": return "bg-red-300 text-black-800";
             case "planned": return "bg-blue-100 text-blue-800";
             case "scheduled": return "bg-purple-100 text-purple-800";
             case "ready_to_start": return "bg-yellow-100 text-yellow-800";
@@ -395,13 +396,13 @@ export default function ManufacturingOrderDetailsPage() {
                                                 <Eye className="w-4 h-4" />
                                                 View WO
                                             </button>
-                                            {wo.status === 'planned' && (
+                                            {wo.status === 'pending' && (
                                                 <button
                                                     onClick={() => handlePlanWorkOrder(wo._id)}
                                                     className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2"
                                                 >
                                                     <Settings className="w-4 h-4" />
-                                                    Plan
+                                                    Create Plan
                                                 </button>
                                             )}
                                         </div>

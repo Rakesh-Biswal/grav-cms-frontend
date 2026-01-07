@@ -1,4 +1,4 @@
-// app/project-manager/dashboard/production/work-orders/[id]/page.js
+// app/project-manager/dashboard/production/work-orders/[id]/page.js - UPDATED
 
 "use client";
 
@@ -30,8 +30,16 @@ import {
     Download,
     Play,
     Pause,
-    CheckSquare
+    CheckSquare,
+    Barcode,
+    QrCode,
+    Copy,
+    Scan
 } from "lucide-react";
+import dynamic from 'next/dynamic';
+
+import BarcodeGenerator from './components/BarcodeGenerator';
+
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
@@ -45,6 +53,11 @@ export default function WorkOrderViewPage() {
     const [workOrder, setWorkOrder] = useState(null);
     const [stockItem, setStockItem] = useState(null);
     const [customerRequest, setCustomerRequest] = useState(null);
+    const [showBarcodeModal, setShowBarcodeModal] = useState(false);
+    const [barcodeData, setBarcodeData] = useState(null);
+    const [barcodeLoading, setBarcodeLoading] = useState(false);
+    const [showBarcodeGenerator, setShowBarcodeGenerator] = useState(false);
+
 
     const fetchWorkOrderDetails = async () => {
         try {
@@ -59,14 +72,13 @@ export default function WorkOrderViewPage() {
                 if (data.success) {
                     setWorkOrder(data.workOrder);
                     setStockItem(data.workOrder.stockItemId || data.workOrder.stockItem);
-                    
-                    // Fetch customer request details if available
+
                     if (data.workOrder.customerRequestId) {
                         const requestResponse = await fetch(
                             `${API_URL}/api/cms/manufacturing/manufacturing-orders/${data.workOrder.customerRequestId}`,
                             { credentials: "include" }
                         );
-                        
+
                         if (requestResponse.ok) {
                             const requestData = await requestResponse.json();
                             if (requestData.success) {
@@ -89,8 +101,72 @@ export default function WorkOrderViewPage() {
         }
     }, [id]);
 
+    const generateBarcodeId = (sequence) => {
+        if (!workOrder) return '';
+
+        // Barcode ID Format: [WO Number]-[Sequence]-[Operation Count]-[Timestamp]
+        const timestamp = Date.now().toString().slice(-8);
+        const operationCount = workOrder.operations?.length || 0;
+        return `${workOrder.workOrderNumber}-${sequence.toString().padStart(4, '0')}-${operationCount}-${timestamp}`;
+    };
+
+    const generateBarcodeData = async () => {
+        if (!workOrder) return;
+
+        setBarcodeLoading(true);
+        try {
+            const totalBarcodes = workOrder.quantity * (workOrder.operations?.length || 0);
+            const barcodeItems = [];
+            let sequence = 1;
+
+            // Generate barcode data for each unit and operation
+            for (let unit = 1; unit <= workOrder.quantity; unit++) {
+                for (let opIndex = 0; opIndex < (workOrder.operations?.length || 0); opIndex++) {
+                    const operation = workOrder.operations[opIndex];
+                    const barcodeId = generateBarcodeId(sequence);
+
+                    barcodeItems.push({
+                        id: barcodeId,
+                        sequence: sequence,
+                        unitNumber: unit,
+                        operationIndex: opIndex + 1,
+                        operationType: operation?.operationType || 'Operation',
+                        machineName: operation?.assignedMachineName || 'Not Assigned',
+                        productName: workOrder.stockItemName,
+                        productCode: workOrder.stockItemReference,
+                        workOrderNumber: workOrder.workOrderNumber,
+                        variant: workOrder.variantAttributes?.map(attr => `${attr.name}:${attr.value}`).join(', ') || 'Standard'
+                    });
+
+                    sequence++;
+                }
+            }
+
+            setBarcodeData({
+                items: barcodeItems,
+                workOrder: workOrder,
+                generatedAt: new Date().toISOString(),
+                totalBarcodes: barcodeItems.length
+            });
+            setShowBarcodeModal(true);
+        } catch (error) {
+            console.error("Error generating barcode data:", error);
+            alert("Error generating barcode data");
+        } finally {
+            setBarcodeLoading(false);
+        }
+    };
+
+    const handlePrintBarcodes = () => {
+        // This will be handled by the BarcodePDF component
+        generateBarcodeData();
+    };
+
+    
+
     const getStatusColor = (status) => {
         switch (status) {
+            case "pending": return "bg-gray-100 text-gray-800";
             case "planned": return "bg-blue-100 text-blue-800";
             case "scheduled": return "bg-purple-100 text-purple-800";
             case "ready_to_start": return "bg-yellow-100 text-yellow-800";
@@ -98,6 +174,7 @@ export default function WorkOrderViewPage() {
             case "paused": return "bg-orange-100 text-orange-800";
             case "completed": return "bg-teal-100 text-teal-800";
             case "cancelled": return "bg-red-100 text-red-800";
+            case "partial_allocation": return "bg-yellow-100 text-yellow-800";
             default: return "bg-gray-100 text-gray-800";
         }
     };
@@ -148,12 +225,12 @@ export default function WorkOrderViewPage() {
         const hours = Math.floor(seconds / 3600);
         const minutes = Math.floor((seconds % 3600) / 60);
         const remainingSeconds = seconds % 60;
-        
+
         const parts = [];
         if (hours > 0) parts.push(`${hours}h`);
         if (minutes > 0) parts.push(`${minutes}m`);
         if (remainingSeconds > 0) parts.push(`${remainingSeconds}s`);
-        
+
         return parts.join(' ') || '0s';
     };
 
@@ -256,12 +333,15 @@ export default function WorkOrderViewPage() {
         );
     }
 
-    const needsPlanning = workOrder.status === "planned" || 
-                         workOrder.rawMaterials.some(rm => rm.allocationStatus === "not_allocated") ||
-                         workOrder.operations.some(op => !op.assignedMachine);
+    const needsPlanning = workOrder.status === "pending" ||
+        workOrder.status === "planned" ||
+        workOrder.rawMaterials?.some(rm => rm.allocationStatus === "not_allocated") ||
+        workOrder.operations?.some(op => !op.assignedMachine);
+
+    const totalBarcodes = workOrder.quantity * (workOrder.operations?.length || 0);
 
     return (
-        <DashboardLayout>
+        <DashboardLayout activeMenu="production">
             <div className="space-y-6">
                 {/* Header */}
                 <div className="flex items-center justify-between">
@@ -273,13 +353,22 @@ export default function WorkOrderViewPage() {
                             <ArrowLeft className="w-5 h-5" />
                         </button>
                         <div>
-                            <h1 className="text-2xl font-bold text-gray-900">View WO Details</h1>
+                            <h1 className="text-2xl font-bold text-gray-900">View Work Order</h1>
                             <p className="text-gray-600">
-                                {workOrder.workOrderNumber} | {workOrder.stockItemName} 
+                                {workOrder.workOrderNumber} | {workOrder.stockItemName}
                             </p>
                         </div>
                     </div>
                     <div className="flex items-center gap-3">
+                        {workOrder.status === "planned" && totalBarcodes > 0 && (
+                            <button
+                                onClick={() => setShowBarcodeGenerator(true)}
+                                className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 flex items-center gap-2"
+                            >
+                                <Barcode className="w-4 h-4" />
+                                Generate Barcodes ({totalBarcodes})
+                            </button>
+                        )}
                         <button
                             onClick={fetchWorkOrderDetails}
                             className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md"
@@ -339,7 +428,7 @@ export default function WorkOrderViewPage() {
 
                 {/* Status and Info Bar */}
                 <div className="bg-white rounded-lg border border-gray-200 p-6">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
                         <div>
                             <div className="text-sm text-gray-600">Status</div>
                             <span className={`px-3 py-1 text-sm rounded-full ${getStatusColor(workOrder.status)}`}>
@@ -351,13 +440,17 @@ export default function WorkOrderViewPage() {
                             <div className="font-medium">{workOrder.priority.toUpperCase()}</div>
                         </div>
                         <div>
+                            <div className="text-sm text-gray-600">Quantity</div>
+                            <div className="font-medium text-blue-600">{workOrder.quantity} units</div>
+                        </div>
+                        <div>
                             <div className="text-sm text-gray-600">Created</div>
                             <div className="font-medium">{formatDate(workOrder.createdAt)}</div>
                         </div>
                         <div>
                             <div className="text-sm text-gray-600">Planned By</div>
                             <div className="font-medium">
-                                {workOrder.plannedBy?.name || workOrder.createdBy?.name || 'Production Manager'}
+                                {workOrder.plannedBy?.name || workOrder.createdBy?.name || 'Not planned'}
                             </div>
                         </div>
                     </div>
@@ -369,8 +462,8 @@ export default function WorkOrderViewPage() {
                         <button
                             onClick={() => setActiveTab("overview")}
                             className={`py-3 px-1 border-b-2 font-medium text-sm ${activeTab === "overview"
-                                    ? "border-blue-600 text-blue-600"
-                                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                                ? "border-blue-600 text-blue-600"
+                                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                                 }`}
                         >
                             <div className="flex items-center gap-2">
@@ -381,32 +474,32 @@ export default function WorkOrderViewPage() {
                         <button
                             onClick={() => setActiveTab("rawMaterials")}
                             className={`py-3 px-1 border-b-2 font-medium text-sm ${activeTab === "rawMaterials"
-                                    ? "border-blue-600 text-blue-600"
-                                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                                ? "border-blue-600 text-blue-600"
+                                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                                 }`}
                         >
                             <div className="flex items-center gap-2">
                                 <Package className="w-4 h-4" />
-                                Raw Materials ({workOrder.rawMaterials.length})
+                                Raw Materials ({workOrder.rawMaterials?.length || 0})
                             </div>
                         </button>
                         <button
                             onClick={() => setActiveTab("operations")}
                             className={`py-3 px-1 border-b-2 font-medium text-sm ${activeTab === "operations"
-                                    ? "border-blue-600 text-blue-600"
-                                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                                ? "border-blue-600 text-blue-600"
+                                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                                 }`}
                         >
                             <div className="flex items-center gap-2">
                                 <Wrench className="w-4 h-4" />
-                                Operations ({workOrder.operations.length})
+                                Operations ({workOrder.operations?.length || 0})
                             </div>
                         </button>
                         <button
                             onClick={() => setActiveTab("timeline")}
                             className={`py-3 px-1 border-b-2 font-medium text-sm ${activeTab === "timeline"
-                                    ? "border-blue-600 text-blue-600"
-                                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                                ? "border-blue-600 text-blue-600"
+                                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                                 }`}
                         >
                             <div className="flex items-center gap-2">
@@ -417,8 +510,8 @@ export default function WorkOrderViewPage() {
                         <button
                             onClick={() => setActiveTab("delivery")}
                             className={`py-3 px-1 border-b-2 font-medium text-sm ${activeTab === "delivery"
-                                    ? "border-blue-600 text-blue-600"
-                                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                                ? "border-blue-600 text-blue-600"
+                                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                                 }`}
                         >
                             <div className="flex items-center gap-2">
@@ -446,8 +539,8 @@ export default function WorkOrderViewPage() {
                                         <div className="font-medium">{workOrder.stockItemReference}</div>
                                     </div>
                                     <div>
-                                        <div className="text-sm text-gray-600">Quantity</div>
-                                        <div className="font-medium text-blue-600">{workOrder.quantity} units</div>
+                                        <div className="text-sm text-gray-600">Work Order</div>
+                                        <div className="font-medium text-blue-600">{workOrder.workOrderNumber}</div>
                                     </div>
                                 </div>
                                 <div className="space-y-3">
@@ -482,14 +575,14 @@ export default function WorkOrderViewPage() {
                         {/* Planning Status */}
                         <div className="bg-white rounded-lg border border-gray-200 p-6">
                             <h2 className="text-lg font-semibold text-gray-900 mb-4">Planning Status</h2>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                                 <div className="text-center p-4 rounded-lg bg-gray-50">
                                     <div className="flex items-center justify-center gap-2 mb-2">
                                         <Package className="w-5 h-5 text-blue-600" />
                                         <div className="text-lg font-bold text-blue-900">
-                                            {workOrder.rawMaterials.filter(rm => 
+                                            {workOrder.rawMaterials?.filter(rm =>
                                                 rm.allocationStatus === "fully_allocated" || rm.allocationStatus === "issued"
-                                            ).length} / {workOrder.rawMaterials.length}
+                                            ).length || 0} / {workOrder.rawMaterials?.length || 0}
                                         </div>
                                     </div>
                                     <div className="text-sm text-gray-700">Raw Materials Allocated</div>
@@ -498,7 +591,7 @@ export default function WorkOrderViewPage() {
                                     <div className="flex items-center justify-center gap-2 mb-2">
                                         <Factory className="w-5 h-5 text-green-600" />
                                         <div className="text-lg font-bold text-green-900">
-                                            {workOrder.operations.filter(op => op.assignedMachine).length} / {workOrder.operations.length}
+                                            {workOrder.operations?.filter(op => op.assignedMachine).length || 0} / {workOrder.operations?.length || 0}
                                         </div>
                                     </div>
                                     <div className="text-sm text-gray-700">Machines Assigned</div>
@@ -511,6 +604,15 @@ export default function WorkOrderViewPage() {
                                         </div>
                                     </div>
                                     <div className="text-sm text-gray-700">Total Planned Time</div>
+                                </div>
+                                <div className="text-center p-4 rounded-lg bg-gray-50">
+                                    <div className="flex items-center justify-center gap-2 mb-2">
+                                        <Barcode className="w-5 h-5 text-purple-600" />
+                                        <div className="text-lg font-bold text-purple-900">
+                                            {totalBarcodes}
+                                        </div>
+                                    </div>
+                                    <div className="text-sm text-gray-700">Barcodes Needed</div>
                                 </div>
                             </div>
 
@@ -580,7 +682,7 @@ export default function WorkOrderViewPage() {
                                     <div>
                                         <h2 className="text-lg font-semibold text-gray-900">Raw Materials</h2>
                                         <p className="text-gray-600">
-                                            Total estimated cost: {formatCurrency(workOrder.estimatedCost)}
+                                            Total estimated cost: {formatCurrency(workOrder.estimatedCost || 0)}
                                         </p>
                                     </div>
                                     {needsPlanning && (
@@ -626,7 +728,7 @@ export default function WorkOrderViewPage() {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-200">
-                                        {workOrder.rawMaterials.length === 0 ? (
+                                        {!workOrder.rawMaterials || workOrder.rawMaterials.length === 0 ? (
                                             <tr>
                                                 <td colSpan="8" className="px-6 py-8 text-center">
                                                     <Package className="w-12 h-12 text-gray-300 mx-auto mb-4" />
@@ -642,30 +744,30 @@ export default function WorkOrderViewPage() {
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         <div className="font-medium">
-                                                            {material.quantityRequired.toFixed(2)} {material.unit}
+                                                            {material.quantityRequired?.toFixed(2) || '0'} {material.unit}
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         <div className="font-medium">
-                                                            {material.quantityAllocated.toFixed(2)} {material.unit}
+                                                            {material.quantityAllocated?.toFixed(2) || '0'} {material.unit}
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         <div className="font-medium">
-                                                            {material.quantityIssued.toFixed(2)} {material.unit}
+                                                            {material.quantityIssued?.toFixed(2) || '0'} {material.unit}
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4">
-                                                        <div className="font-medium">{formatCurrency(material.unitCost)}</div>
+                                                        <div className="font-medium">{formatCurrency(material.unitCost || 0)}</div>
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         <div className="font-medium text-blue-600">
-                                                            {formatCurrency(material.totalCost)}
+                                                            {formatCurrency(material.totalCost || 0)}
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         <span className={`px-2 py-1 text-xs rounded-full ${getRawMaterialStatusColor(material.allocationStatus)}`}>
-                                                            {material.allocationStatus.replace(/_/g, ' ').toUpperCase()}
+                                                            {material.allocationStatus?.replace(/_/g, ' ').toUpperCase() || 'UNKNOWN'}
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4">
@@ -685,27 +787,27 @@ export default function WorkOrderViewPage() {
                                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                     <div className="text-center p-3 bg-white rounded-lg">
                                         <div className="text-xl font-bold text-blue-900">
-                                            {workOrder.rawMaterials.length}
+                                            {workOrder.rawMaterials?.length || 0}
                                         </div>
                                         <div className="text-sm text-blue-700">Total Items</div>
                                     </div>
                                     <div className="text-center p-3 bg-white rounded-lg">
                                         <div className="text-xl font-bold text-green-900">
-                                            {workOrder.rawMaterials.filter(m => 
+                                            {workOrder.rawMaterials?.filter(m =>
                                                 m.allocationStatus === "fully_allocated" || m.allocationStatus === "issued"
-                                            ).length}
+                                            ).length || 0}
                                         </div>
                                         <div className="text-sm text-green-700">Fully Allocated</div>
                                     </div>
                                     <div className="text-center p-3 bg-white rounded-lg">
                                         <div className="text-xl font-bold text-yellow-900">
-                                            {workOrder.rawMaterials.filter(m => m.allocationStatus === "partially_allocated").length}
+                                            {workOrder.rawMaterials?.filter(m => m.allocationStatus === "partially_allocated").length || 0}
                                         </div>
                                         <div className="text-sm text-yellow-700">Partially Allocated</div>
                                     </div>
                                     <div className="text-center p-3 bg-white rounded-lg">
                                         <div className="text-xl font-bold text-red-900">
-                                            {workOrder.rawMaterials.filter(m => m.allocationStatus === "not_allocated").length}
+                                            {workOrder.rawMaterials?.filter(m => m.allocationStatus === "not_allocated").length || 0}
                                         </div>
                                         <div className="text-sm text-red-700">Not Allocated</div>
                                     </div>
@@ -740,14 +842,14 @@ export default function WorkOrderViewPage() {
                             </div>
 
                             <div className="p-6 space-y-6">
-                                {workOrder.operations.length === 0 ? (
+                                {!workOrder.operations || workOrder.operations.length === 0 ? (
                                     <div className="text-center py-8">
                                         <Wrench className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                                         <p className="text-gray-600">No operations defined for this work order.</p>
                                     </div>
                                 ) : (
                                     workOrder.operations.map((operation, index) => (
-                                        <div key={operation._id} className="border border-gray-200 rounded-lg p-6">
+                                        <div key={operation._id || index} className="border border-gray-200 rounded-lg p-6">
                                             <div className="flex items-start justify-between mb-6">
                                                 <div>
                                                     <div className="flex items-center gap-3 mb-2">
@@ -764,7 +866,7 @@ export default function WorkOrderViewPage() {
                                                         </div>
                                                     </div>
                                                     <span className={`px-3 py-1 text-xs rounded-full ${getOperationStatusColor(operation.status)}`}>
-                                                        {operation.status.toUpperCase()}
+                                                        {operation.status?.toUpperCase() || 'PENDING'}
                                                     </span>
                                                 </div>
                                                 <div className="text-right">
@@ -788,6 +890,16 @@ export default function WorkOrderViewPage() {
                                                             <div className="text-sm text-gray-600 pl-6">
                                                                 Serial: {operation.assignedMachineSerial}
                                                             </div>
+                                                            {operation.additionalMachines?.length > 0 && (
+                                                                <div className="mt-3">
+                                                                    <div className="text-sm font-medium text-gray-700 mb-1">Additional Machines:</div>
+                                                                    {operation.additionalMachines.map((am, amIdx) => (
+                                                                        <div key={amIdx} className="text-sm text-gray-600 pl-4">
+                                                                            • {am.assignedMachineName} ({am.assignedMachineSerial})
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     ) : (
                                                         <div className="flex items-center gap-2 text-yellow-600">
@@ -811,16 +923,12 @@ export default function WorkOrderViewPage() {
                                                                 {secondsToTime(operation.plannedTimeSeconds || operation.estimatedTimeSeconds || 0)}
                                                             </span>
                                                         </div>
-                                                        {operation.scheduledStartTime && (
+                                                        {operation.maxAllowedSeconds && (
                                                             <div className="flex justify-between">
-                                                                <span className="text-gray-600">Scheduled Start:</span>
-                                                                <span>{formatDate(operation.scheduledStartTime)}</span>
-                                                            </div>
-                                                        )}
-                                                        {operation.scheduledEndTime && (
-                                                            <div className="flex justify-between">
-                                                                <span className="text-gray-600">Scheduled End:</span>
-                                                                <span>{formatDate(operation.scheduledEndTime)}</span>
+                                                                <span className="text-gray-600">Max Allowed (70% eff.):</span>
+                                                                <span className="text-orange-600">
+                                                                    {secondsToTime(operation.maxAllowedSeconds)}
+                                                                </span>
                                                             </div>
                                                         )}
                                                     </div>
@@ -832,27 +940,6 @@ export default function WorkOrderViewPage() {
                                                 <div className="mt-6 pt-6 border-t border-gray-200">
                                                     <h4 className="font-medium text-gray-700 mb-2">Notes</h4>
                                                     <p className="text-gray-600">{operation.notes}</p>
-                                                </div>
-                                            )}
-
-                                            {/* Progress Tracking */}
-                                            {(operation.actualStartTime || operation.actualEndTime) && (
-                                                <div className="mt-6 pt-6 border-t border-gray-200">
-                                                    <h4 className="font-medium text-gray-700 mb-3">Progress</h4>
-                                                    <div className="space-y-2">
-                                                        {operation.actualStartTime && (
-                                                            <div className="flex justify-between">
-                                                                <span className="text-gray-600">Actual Start:</span>
-                                                                <span>{formatDate(operation.actualStartTime)}</span>
-                                                            </div>
-                                                        )}
-                                                        {operation.actualEndTime && (
-                                                            <div className="flex justify-between">
-                                                                <span className="text-gray-600">Actual End:</span>
-                                                                <span>{formatDate(operation.actualEndTime)}</span>
-                                                            </div>
-                                                        )}
-                                                    </div>
                                                 </div>
                                             )}
                                         </div>
@@ -978,9 +1065,9 @@ export default function WorkOrderViewPage() {
                                         </div>
                                         <div className="text-center p-3 bg-white rounded-lg">
                                             <div className="text-lg font-bold text-green-900">
-                                                {secondsToTime(workOrder.operations.reduce((total, op) => 
+                                                {secondsToTime(workOrder.operations?.reduce((total, op) =>
                                                     total + (op.plannedTimeSeconds || op.estimatedTimeSeconds || 0), 0
-                                                ))}
+                                                ) || 0)}
                                             </div>
                                             <div className="text-sm text-green-700">Operations Time</div>
                                         </div>
@@ -1048,7 +1135,7 @@ export default function WorkOrderViewPage() {
                                         <div className="flex items-center justify-between">
                                             <div className="text-gray-600">Sales Approval Date</div>
                                             <div className="font-medium">
-                                                {customerRequest?.timeline?.salesApproved 
+                                                {customerRequest?.timeline?.salesApproved
                                                     ? formatDate(customerRequest.timeline.salesApproved)
                                                     : 'Not available'}
                                             </div>
@@ -1117,6 +1204,16 @@ export default function WorkOrderViewPage() {
                     </div>
                 )}
             </div>
+
+            {/* Barcode Modal */}
+            
+
+            {showBarcodeGenerator && (
+                <BarcodeGenerator
+                    workOrder={workOrder}
+                    onClose={() => setShowBarcodeGenerator(false)}
+                />
+            )}
         </DashboardLayout>
     );
 }

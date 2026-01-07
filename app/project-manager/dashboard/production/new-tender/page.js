@@ -682,3 +682,6 @@ export default function TenderRegistrationPage() {
     </DashboardLayout>
   )
 }
+
+
+
